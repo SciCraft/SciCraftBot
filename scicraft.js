@@ -10,7 +10,7 @@ export default (_client, _config) => {
   if (config['cleanup-streams']) {
     const cleanupConf = config['cleanup-streams']
     const channels = cleanupConf.channels || []
-    client.on('message', msg => {
+    client.on('messageCreate', msg => {
       if (channels.includes(msg.channel.id)) checkCleanup(msg)
     })
     if (cleanupConf.twitchApiClientId && cleanupConf.twitchApiClientSecret) {
@@ -30,8 +30,8 @@ export default (_client, _config) => {
     const ignoreRoles = mediaOnlyConf['ignore-roles'] || []
     const ignorePermissions = mediaOnlyConf['ignore-permissions'] || ['MANAGE_CHANNELS']
     const channels = mediaOnlyConf.channels || []
-    client.on('message', msg => {
-      if (!channels.includes(msg.channel.id) || !msg.deletable || !msg.member || /\bhttp(s)?:\/\//.test(msg.content) || msg.embeds.length || msg.attachments.size) return
+    client.on('messageCreate', msg => {
+      if (msg.author.bot || !channels.includes(msg.channel.id) || !msg.deletable || !msg.member || /\bhttp(s)?:\/\//.test(msg.content) || msg.embeds.length || msg.attachments.size) return
       for (const [id, role] of msg.member.roles.cache) {
         if (ignoreRoles.includes(id)) {
           console.log(`${msg.id}: ${msg.author.username} has ${role.name}, not deleting`)
@@ -90,7 +90,7 @@ async function deleteAndLog (msg, reason) {
   if (config.modlog) {
     const modlog = await client.channels.fetch(config.modlog)
     await modlog.send({
-      embed: {
+      embeds: [{
         author: {
           name: msg.author.tag,
           icon_url: msg.author.displayAvatarURL()
@@ -104,7 +104,7 @@ async function deleteAndLog (msg, reason) {
           text: 'ID: ' + msg.id
         },
         timestamp: new Date(msg.createdTimestamp)
-      }
+      }]
     })
   }
 }
