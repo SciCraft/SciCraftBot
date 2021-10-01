@@ -39,7 +39,7 @@ export default (_client, _config) => {
         }
       }
       for (const perm of ignorePermissions) {
-        if (msg.member.hasPermission(perm)) {
+        if (msg.member.permissions.has(perm)) {
           console.log(`${msg.id}: ${msg.author.username} has ${perm}, not deleting`)
           return
         }
