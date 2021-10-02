@@ -17,7 +17,7 @@ export default (_client, _config, _jira) => {
       .addStringOption(option => option.setName('project').setDescription('The project to search in, for example "MC"')),
     new SlashCommandBuilder().setName('mcstatus').setDescription('Checks Mojang server status'),
     new SlashCommandBuilder().setName('bug').setDescription('Shows information for a bug')
-      .addStringOption(option => option.setName('id').setDescription('The bug id (for example MC-88959)'))
+      .addStringOption(option => option.setName('id').setDescription('The bug id (for example MC-88959)').setRequired(true))
   ]
 }
 
