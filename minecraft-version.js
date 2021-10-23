@@ -181,7 +181,9 @@ async function getPatchNotesInfo(version) {
   }
   const match = patchNotes.body.match(/^<p>(.*?)<\/p>/)
   if (match) {
-    info.description = html.decode(match[1])
+    let h = match[1]
+    h = h.replace(/<a.*?href="(.*?)".*?>(.*?)<\/a>/g, "[$2]($1)")
+    info.description = html.decode(h)
   }
   return info
 }
@@ -228,7 +230,6 @@ async function getArticle (version) {
     getArticleInfo(version),
     getPatchNotesInfo(version)
   ])).map(r => r.value || {})
-  console.log(infos)
   return {...infos[0], ...infos[1]}
 }
 
