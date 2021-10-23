@@ -95,7 +95,7 @@ async function update (version) {
   if (config.channels) {
     for (const id of config.channels) {
       const channel = await client.channels.fetch(id)
-      await channel.send({embed})
+      await channel.send({embeds: [embed]})
     }
   }
 }
