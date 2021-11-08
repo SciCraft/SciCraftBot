@@ -1,3 +1,4 @@
+import https from 'https'
 import request from 'request-promise-native'
 import fetch from 'node-fetch'
 import html from 'html-entities'
@@ -13,7 +14,7 @@ export default async (_client, _config) => {
   const state = {}
   await poll.call(state)
   if (config.webhook || config.channels) {
-    setInterval(poll.bind(state), (config.interval || 10) * 1000)
+    setInterval(poll.bind(state), (config.interval || 2) * 1000)
   }
   async function handleVersionCommand(interaction, versionArg) {
     let type = 'snapshot'
@@ -57,9 +58,35 @@ export default async (_client, _config) => {
   ]
 }
 
+const agent = new https.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 10000
+})
+
+async function fetchManifest(lastModified) {
+  const headers = {}
+  if (lastModified) {
+    headers['If-Modified-Since'] = lastModified.toUTCString()
+  }
+  try {
+    return await fetch('https://meta.skyrising.xyz/mc/game/version_manifest.json', {timeout: 4000, headers, agent})
+  } catch (e) {
+    console.error(e)
+    return await fetch('https://launchermeta.mojang.com/mc/game/version_manifest.json', {timeout: 4000, agent})
+  }
+}
+
 async function poll () {
   try {
-    const res = await fetch('https://launchermeta.mojang.com/mc/game/version_manifest.json')
+    const res = await fetchManifest(this.lastModified)
+    const lastModifiedStr = res.headers.get('Last-Modified')
+    if (lastModifiedStr) {
+      const lastModified = new Date(lastModifiedStr)
+      if (isFinite(lastModified.getTime())) {
+        this.lastModified = lastModified
+      }
+    }
+    if (res.status === 304) return
     const data = await res.json()
     this.data = data
     const latestDate = data.versions.map(v => Date.parse(v.time)).reduce((a, b) => a > b ? a : b)
