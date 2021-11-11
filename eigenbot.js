@@ -242,6 +242,11 @@ async function sendEmbed (interaction, issue) {
     const categories = issue.fields.customfield_11901.map(c => c.value)
     descriptionString += ` | **${categories.length === 1 ? 'Category' : 'Categories'}:** ` + categories.join(', ')
   }
+  descriptionString += '\n**Reporter:** ' + issue.fields.reporter.displayName
+  if (issue.fields.assignee) {
+    descriptionString += ' | **Assignee:** ' + issue.fields.assignee.displayName
+  }
+
   // Generate the message
   // Pick a color based on the status
   let color = config.colors[issue.fields.status.name]
