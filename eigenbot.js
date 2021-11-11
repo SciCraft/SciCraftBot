@@ -221,9 +221,16 @@ function sendEmbed (interaction, issue) {
   if (!issue.fields.resolution) {
     // For unresolved issues
     descriptionString += ' | **Votes:** ' + issue.fields.votes.votes
+    if (issue.fields.customfield_12200) {
+      descriptionString += ' | **Priority:** ' + issue.fields.customfield_12200.value
+    }
   } else {
     // For resolved issues
     descriptionString += ' | **Resolution:** ' + issue.fields.resolution.name
+  }
+  if (issue.fields.customfield_11901) {
+    const categories = issue.fields.customfield_11901.map(c => c.value)
+    descriptionString += ` | **${categories.length === 1 ? 'Category' : 'Categories'}:** ` + categories.join(', ')
   }
   // Generate the message
   // Pick a color based on the status
