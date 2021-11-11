@@ -10,8 +10,20 @@ export default (_client, _config, _jira) => {
   client = _client
   config = _config
   jira = _jira
-  client.on('messageCreate', onMessage)
-  client.on('interactionCreate', onInteraction)
+  client.on('messageCreate', async msg => {
+    try {
+      await onMessage(msg)
+    } catch (e) {
+      console.error(e)
+    }
+  })
+  client.on('interactionCreate', async interaction => {
+    try {
+      await onInteraction(interaction)
+    } catch (e) {
+      console.error(e)
+    }
+  })
   return [
     new SlashCommandBuilder().setName('upcoming').setDescription('Shows bugs that are likely fixed in the next snapshot')
       .addStringOption(option => option.setName('project').setDescription('The project to search in, for example "MC"')),
@@ -31,12 +43,10 @@ function onInteraction(interaction) {
       const dash = key.indexOf('-')
       const bugNumber = key.substr(dash + 1)
       if (dash < 0 || parseInt(bugNumber).toString() !== bugNumber) {
-        replyNoMention(interaction, 'Invalid issue id')
-        return
+        return replyNoMention(interaction, 'Invalid issue id')
       }
       if (!PROJECTS.includes(key.substr(0, dash))) {
-        replyNoMention(interaction, 'Unknown project')
-        return
+        return replyNoMention(interaction, 'Unknown project')
       }
       return respondWithIssue(interaction, key)
     }
@@ -44,7 +54,7 @@ function onInteraction(interaction) {
 }
 
 
-function onMessage (msg) {
+async function onMessage (msg) {
   const escapedPrefix = config.prefix.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
   const regexPattern = new RegExp(escapedPrefix + '(' + PROJECTS.join('|') + ')-[0-9]{1,7}', 'gi')
   const urlRegex = new RegExp('https?:\/\/bugs.mojang.com\/browse\/(' + PROJECTS.join('|') + ')-[0-9]{1,7}', 'gi')
@@ -54,7 +64,7 @@ function onMessage (msg) {
   }
   // help: Gives usage information
   if (msg.content.startsWith(config.prefix + 'help')) {
-    sendHelp(msg)
+    await sendHelp(msg)
     return
   }
 
@@ -65,13 +75,13 @@ function onMessage (msg) {
     if (args.length > 1) {
       project = args[1].toUpperCase()
     }
-    sendUpcoming(msg, project)
+    await sendUpcoming(msg, project)
     return
   }
 
   // mcstatus: Checks Mojang server status
   if (msg.content.startsWith(config.prefix + 'mcstatus')) {
-    sendStatus(msg)
+    await sendStatus(msg)
     return
   }
   let matches = []
@@ -86,26 +96,26 @@ function onMessage (msg) {
     }))
   }
   for (const issueKey of new Set(matches)) {
-    respondWithIssue(msg, issueKey)
+    await respondWithIssue(msg, issueKey)
   }
 }
 
-function respondWithIssue(msg, issueKey) {
-  jira.findIssue(issueKey).then(issue =>{
-    // Send info about the bug in the form of an embed to the Discord channel
-    sendEmbed(msg, issue)
-  }).catch(error => {
+async function respondWithIssue(msg, issueKey) {
+  // Send info about the bug in the form of an embed to the Discord channel
+  await jira.findIssue(issueKey).then(issue => sendEmbed(msg, issue)).catch(async error => {
     if (error && error.error && error.error.errorMessages && error.error.errorMessages.includes('Issue Does Not Exist')) {
-      replyNoMention(msg, 'No issue was found for ' + issueKey + '.')
+      await replyNoMention(msg, 'No issue was found for ' + issueKey + '.')
     } else {
-      replyNoMention(msg, 'An unknown error has occurred.')
+      try {
+        await replyNoMention(msg, 'An unknown error has occurred.')
+      } catch (_) {/**/}
       console.log(error)
     }
   })
 }
 
-function sendHelp (interaction) {
-  replyNoMention(interaction, {embeds: [{
+async function sendHelp (interaction) {
+  await replyNoMention(interaction, {embeds: [{
     title: config.name + ' help',
     description: 'I listen for Minecraft bug report links or ' + config.prefix + 'PROJECT-NUMBER\n' +
            'For example, saying https://bugs.mojang.com/browse/MC-81098 or ' + config.prefix + 'MC-81098 will give quick info on those bugs',
@@ -216,7 +226,7 @@ async function sendStatus (interaction) {
 }
 
 // Send info about the bug in the form of an embed to the Discord channel
-function sendEmbed (interaction, issue) {
+async function sendEmbed (interaction, issue) {
   let descriptionString = '**Status:** ' + issue.fields.status.name
   if (!issue.fields.resolution) {
     // For unresolved issues
@@ -241,7 +251,7 @@ function sendEmbed (interaction, issue) {
   } else if (issue.fields.resolution && ["Won't Fix", 'Works As Intended'].includes(issue.fields.resolution.name)) {
     color = config.colors['Working']
   }
-  replyNoMention(interaction, {embeds: [{
+  await replyNoMention(interaction, {embeds: [{
     title: issue.key + ': ' + issue.fields.summary,
     url: 'https://bugs.mojang.com/browse/' + issue.key,
     description: descriptionString,
