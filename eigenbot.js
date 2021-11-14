@@ -95,8 +95,11 @@ async function onMessage (msg) {
       return url.split('/')[4]
     }))
   }
-  for (const issueKey of new Set(matches)) {
-    await respondWithIssue(msg, issueKey)
+  const keys = new Set(matches)
+  if (!config.maxBugsPerMessage || keys.size <= config.maxBugsPerMessage) {
+    for (const issueKey of keys) {
+      await respondWithIssue(msg, issueKey)
+    }
   }
 }
 

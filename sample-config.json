@@ -17,6 +17,7 @@
         "Invalid": 9441545, //For Invalid, Duplicate, Incomplete, and Cannot Reproduce resolutions
         "Working": 16777215 //For Won't Fix and Works as Intended resolutions
     },
+    "maxBugsPerMessage": , // Number of bug ids allowed per message
     "modlog": "", // channel id where to log deletions
     "cleanup-streams": {
       "twitchApiClientId": "", // Twitch API client id (required to check which streams are live)
