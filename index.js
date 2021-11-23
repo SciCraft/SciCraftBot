@@ -1,5 +1,4 @@
 import fs from 'fs'
-import JiraApi from 'jira-client'
 import {Client, Intents} from 'discord.js'
 import {REST} from '@discordjs/rest'
 import {Routes} from 'discord-api-types/v9'
@@ -19,21 +18,13 @@ client.on('ready', () => {
   })
 })
 
-const jira = new JiraApi({
-  protocol: 'https',
-  host: config.host,
-  port: 443,
-  username: config.user,
-  password: config.password,
-  apiVersion: '2',
-  strictSSL: true
-})
-
 ;(async () => {
   const commands = []
-  for (const module of ['eigenbot', 'scicraft', 'minecraft-version']) {
-    const m = await import('./' + module + '.js')
-    const moduleCommands = (await m.default(client, config, jira)) || []
+  for (const module in config.modules) {
+    const modConfig = config.modules[module]
+    if (!modConfig) continue
+    const m = await import('./modules/' + module + '/index.js')
+    const moduleCommands = (await m.default(client, config, modConfig)) || []
     for (const command of moduleCommands) {
       if (command.toJSON) {
         commands.push(command.toJSON())

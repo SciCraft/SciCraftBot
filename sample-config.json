@@ -1,37 +1,43 @@
 {
     "token": "", //This is the bot token
     "guild": "", //The guild for slash commands (leave empty or remove for global commands)
-    "host": "bugs.mojang.com", //You shouldn't need to change this
-    "user": "", //This is your JIRA username
-    "password": "", //Password for the same account
-    "prefix": "!", //Prefix for bot commands
-    "url": "https://github.com/skyrising/SciCraftBot", //Linked to in !help
-    "name": "SciCraft Bot", //Bot name listed in !help
-    "colors": { //Colors for JIRA issue statuses
-        "Open": 4876165,
-        "Resolved": 1345836,
-        "In Progress": 16765777, //Unused, but we can leave that in there
-        "Reopened": 4876165,
-        "Closed": 1345836,
-        "Postponed": 16765777,
-        "Invalid": 9441545, //For Invalid, Duplicate, Incomplete, and Cannot Reproduce resolutions
-        "Working": 16777215 //For Won't Fix and Works as Intended resolutions
-    },
-    "maxBugsPerMessage": , // Number of bug ids allowed per message
     "modlog": "", // channel id where to log deletions
-    "cleanup-streams": {
-      "twitchApiClientId": "", // Twitch API client id (required to check which streams are live)
-      "twitchApiClientSecret": "",
-      "channels": [""], // List of channels where stream links should be moderated
-      "gracePeriod": 600 // Amount of time messages are allowed to stay before streams go online (seconds)
-    },
-    "media-only": {
-      "ignore-roles": ["<role-id>"], // Roles that are allowed to post text messages
-      "ignore-permissions": ["<permission>"], // Users with one of these permissions are allowed as well, default is ["MANAGE_CHANNELS"]
-      "channels": ["<channel-id>"] // Channels which are moderated for messages that require media attachments or links
-    },
-    "minecraft-version": {
-      "channels": ["<channel-id>"],
-      "webhook": "<url>"
+    "prefix": "!", //Prefix for bot commands
+    "modules": {
+      "eigenbot": {
+        "host": "bugs.mojang.com", //You shouldn't need to change this
+        "user": "", //This is your JIRA username
+        "password": "", //Password for the same account
+        "url": "https://github.com/skyrising/SciCraftBot", //Linked to in !help
+        "name": "SciCraft Bot", //Bot name listed in !help
+        "colors": { //Colors for JIRA issue statuses
+            "Open": 4876165,
+            "Resolved": 1345836,
+            "In Progress": 16765777, //Unused, but we can leave that in there
+            "Reopened": 4876165,
+            "Closed": 1345836,
+            "Postponed": 16765777,
+            "Invalid": 9441545, //For Invalid, Duplicate, Incomplete, and Cannot Reproduce resolutions
+            "Working": 16777215 //For Won't Fix and Works as Intended resolutions
+        },
+        "maxBugsPerMessage": 5 // Number of bug ids allowed per message
+      },
+      "scicraft": {
+        "cleanup-streams": {
+          "twitchApiClientId": "", // Twitch API client id (required to check which streams are live)
+          "twitchApiClientSecret": "",
+          "channels": [""], // List of channels where stream links should be moderated
+          "gracePeriod": 600 // Amount of time messages are allowed to stay before streams go online (seconds)
+        },
+        "media-only": {
+          "ignore-roles": ["<role-id>"], // Roles that are allowed to post text messages
+          "ignore-permissions": ["<permission>"], // Users with one of these permissions are allowed as well, default is ["MANAGE_CHANNELS"]
+          "channels": ["<channel-id>"] // Channels which are moderated for messages that require media attachments or links
+        }
+      },
+      "minecraft-version": {
+        "channels": ["<channel-id>"],
+        "webhook": "<url>"
+      }
     }
 }
