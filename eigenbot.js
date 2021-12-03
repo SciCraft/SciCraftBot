@@ -1,10 +1,17 @@
 import fetch from 'node-fetch'
-import {replyNoMention, editNoMention} from './utils.js'
-import {SlashCommandBuilder} from '@discordjs/builders'
+import { replyNoMention, editNoMention } from './utils.js'
+import { SlashCommandBuilder } from '@discordjs/builders'
+import { MessageActionRow } from 'discord.js';
 
 const PROJECTS = ['MC', 'MCAPI', 'MCCE', 'MCD', 'MCL', 'MCPE', 'REALMS', 'BDS', 'WEB']
 
 let jira, client, config
+
+// don't really want this to be in config since discord has hard limit of 6000 chars per embed.
+// Although not really an issue because 6000 is huge, but it just a text wall which is what this is trying to fix.
+const ITEMS_PER_PAGE = 15
+// declare global map to keep tack of paginators
+const activePaginators = new Map()
 
 export default (_client, _config, _jira) => {
   client = _client
@@ -44,17 +51,16 @@ function onInteraction(interaction) {
       const bugNumber = key.substr(dash + 1)
       if (dash < 0 || parseInt(bugNumber).toString() !== bugNumber) {
         return replyNoMention(interaction, 'Invalid issue id')
-      }
-      if (!PROJECTS.includes(key.substr(0, dash))) {
+      } else if (!PROJECTS.includes(key.substr(0, dash).toUpperCase())) {
         return replyNoMention(interaction, 'Unknown project')
       }
-      return respondWithIssue(interaction, key)
+      return respondWithIssues(interaction, [key])
     }
   }
 }
 
 
-async function onMessage (msg) {
+async function onMessage(msg) {
   const escapedPrefix = config.prefix.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
   const regexPattern = new RegExp(escapedPrefix + '(' + PROJECTS.join('|') + ')-[0-9]{1,7}', 'gi')
   const urlRegex = new RegExp('https?:\/\/bugs.mojang.com\/browse\/(' + PROJECTS.join('|') + ')-[0-9]{1,7}', 'gi')
@@ -97,24 +103,67 @@ async function onMessage (msg) {
   }
   const keys = new Set(matches)
   if (!config.maxBugsPerMessage || keys.size <= config.maxBugsPerMessage) {
-    for (const issueKey of keys) {
-      await respondWithIssue(msg, issueKey)
-    }
+    await respondWithIssues(msg, Array.from(keys))
   }
 }
 
-async function respondWithIssue(msg, issueKey) {
-  // Send info about the bug in the form of an embed to the Discord channel
-  await jira.findIssue(issueKey).then(issue => sendEmbed(msg, issue)).catch(async error => {
-    if (error && error.error && error.error.errorMessages && error.error.errorMessages.includes('Issue Does Not Exist')) {
-      await replyNoMention(msg, 'No issue was found for ' + issueKey + '.')
-    } else {
-      try {
-        await replyNoMention(msg, 'An unknown error has occurred.')
-      } catch (_) {/**/}
-      console.log(error)
+async function respondWithIssues(msg, issuesKeys) {
+  const maxIssuesBeforeBatching = config.maxIssuesBeforePagination ?? 5
+  // receives set of issue keys
+  // if set size more than maxIssuesBeforeBatching, send paginator
+  // otherwise send issues in individual embeds
+  if (issuesKeys.length > maxIssuesBeforeBatching) {
+      replyNoMention(msg, {
+          embeds: [{
+              title: 'Collecting issues',
+          }],
+          fetchReply: true,
+      }).then((message) => {
+          // makes a search querry
+          // query is in form of 'issueKey in (key1, key2, key3, ...) ORDER BY issueKey ASC'
+          const search = `issueKey in (${[...issuesKeys].join(', ')}) ORDER BY issueKey ASC`
+          jira.searchJira(search)
+              .then(async (results) => {
+                  if (!results.issues || !results.issues.length) {
+                      return editNoMention(message, {
+                          embeds: [{
+                              title: 'No issues found',
+                              color: 0x00FF00,
+                          }],
+                      })
+                  }
+                  createPaginator(message, 'Issues', results.issues)
+              }).catch((error) => {
+                  editNoMention(message, {
+                      embeds: [{
+                          title: 'An error has occurred.',
+                          color: 0xFF0000,
+                      }],
+                  })
+                  console.log('Error when processing upcoming command:')
+                  console.log(error)
+              })
+      })
+  } else {
+    for (const issueKey of issuesKeys) {
+      await jira.findIssue(issueKey)
+        .then((issue) => sendEmbed(msg, issue))
+        .catch(async (error) => {
+          if (error
+              && error.error
+              && error.error.errorMessages
+              && error.error.errorMessages.includes('Issue Does Not Exist')
+          ) {
+              await replyNoMention(msg, `No issue was found for ${issueKey}.`)
+          } else {
+            try {
+              await replyNoMention(msg, 'An unknown error has occurred.')
+            } catch (_) { /* Ignore */ }
+            console.log(error)
+          }
+        })
     }
-  })
+  }
 }
 
 async function sendHelp (interaction) {
@@ -138,56 +187,143 @@ async function sendHelp (interaction) {
   }]})
 }
 
-async function sendUpcoming (interaction, project) {
-  project = project ? project.toUpperCase() : 'MC'
-  if (!PROJECTS.includes(project)) {
-    replyNoMention(interaction, 'Invalid project ID.')
-    return
+function getPageToRender(message) {
+  // get paginator from global cache
+  const paginator = activePaginators.get(message.id)
+  // calculate indices of items to render
+  const start = (paginator.currentPage - 1) * ITEMS_PER_PAGE
+  const end = start + ITEMS_PER_PAGE
+  const rederableIssues = paginator.issues.slice(start, end)
+  // map each issue to "issue key": "hyperlink issue title" style
+
+  const description = rederableIssues
+      .map((issue) => `\u300B[${issue.key}](https://bugs.mojang.com/browse/${issue.key}) - ${issue.fields.summary}`)
+      .join('\n')
+
+  const embed = {
+      title: paginator.title,
+      description,
+      color: 0x7ED6DF,
+      footer: {
+          text: `Page ${paginator.currentPage} of ${Math.ceil(paginator.issues.length / ITEMS_PER_PAGE)}`,
+      },
   }
 
-  let sendNext = replyNoMention.bind(null, interaction)
-  let done = false
-  if (interaction.deferReply) {
-    await interaction.deferReply()
-  } else {
-    setTimeout(async () => {
-      if (!done) {
-        const msg = await replyNoMention(interaction, 'Searching for upcoming bugfixes, please wait...')
-        sendNext = editNoMention.bind(null, msg)
-      }
-    }, 500)
+  const actionRow = new MessageActionRow().addComponents([{
+      type: 'BUTTON',
+      customId: 'previous',
+      style: 'SECONDARY',
+      emoji: '\u2B05',
+      disabled: paginator.currentPage === 1,
+  },
+  {
+      type: 'BUTTON',
+      customId: 'next',
+      style: 'SECONDARY',
+      emoji: '\u27A1',
+      disabled: paginator.currentPage === Math.ceil(paginator.issues.length / ITEMS_PER_PAGE),
+  },
+  {
+      type: 'BUTTON',
+      customId: 'done',
+      style: 'DANGER',
+      emoji: '\uD83D\uDDD1',
+  },
+  ])
+  // return the baked page to send to dicord
+  return {
+      embeds: [embed],
+      components: [actionRow],
   }
-  
-  const search = 'project = ' + project + ' AND fixVersion in unreleasedVersions() ORDER BY resolved DESC'
-  jira.searchJira(search).then(async function (results) {
-    done = true
-    if (!results.issues || !results.issues.length) { 
-      return replyNoMention(interaction, 'No upcoming bugfixes were found.')
-    }
+}
 
-    let messageContent = 'The following bugs will likely be fixed in the next snapshot:'
+async function createPaginator(message, title, issues) {
+  // add the issues to the global paginators
+  activePaginators.set(message.id, { title, issues, currentPage: 1 })
 
-    async function addLine(line) {
-      const newContent = line !== null ? messageContent + '\n' + line : messageContent
-      if (newContent.length >= 2000 || line === null) {
-        const msg = await sendNext(messageContent)
-        sendNext = interaction.followUp ? interaction.followUp.bind(interaction) : msg.reply.bind(msg)
-        messageContent = line || ''
-      } else {
-        messageContent = newContent
-      }
-    }
+  // do the first time render for page
+  // since its not an interaction, an edit is ok
+  message.edit(getPageToRender(message))
 
-    for (const issue of results.issues) {
-      await addLine('**' + issue.key + '**: *' + issue.fields.summary.trim() + '*')
-    }
-    await addLine(null)
-  }).catch(function (error) {
-    done = true
-    replyNoMention(interaction, 'An error has occurred.')
-    console.log('Error when processing upcoming command:')
-    console.log(error)
+  // attach a collector to the message
+  const colletor = message.createMessageComponentCollector({
+      componentTypes: 'BUTTON',
+      time: 300000,
   })
+
+  // when a button is clicked, handle it if it is a valid action
+  colletor.on('collect', async (i) => {
+      if (['previous', 'next', 'done'].includes(i.customId)) {
+          handleButtonClick(i)
+          colletor.resetTimer()
+      }
+  })
+
+  // when the collector times out, remove buttons and remove it from global cache
+  colletor.on('end', async () => {
+      activePaginators.delete(message.id)
+      message.edit({
+          components: [],
+      })
+  })
+}
+
+async function sendUpcoming(interaction, _project) {
+  // default to java edition if no project is specified
+  const project = _project ? _project.toUpperCase() : 'MC'
+
+  // check if project is valid
+  if (!PROJECTS.includes(project)) {
+      replyNoMention(interaction, {
+          embeds: [{
+              title: 'Invalid project ID.',
+              color: 0xFF0000,
+          }],
+      })
+      return
+  }
+
+  // send an placeholder embed while we fetch the issues
+  replyNoMention(interaction, { 
+      embeds: [{ title: `Checking for upcoming ${project} bugfixes...` }],
+      fetchReply: true,
+  }).then((message) => {
+      const search = `project = ${project} AND fixVersion in unreleasedVersions() ORDER BY resolved DESC`
+      jira.searchJira(search).then(async (results) => {
+        if (!results.issues || !results.issues.length) {
+          return editNoMention(message, { embeds: [{ title: 'No upcoming bugfixes were found.', color: 0x00FF00 }] })
+        }
+        const bugCount = results.issues.length === 1 ? 'This 1 bug' : `These ${results.issues.length} bugs`
+        createPaginator(message, `${bugCount} will likely be fixed in the next update for ${project}`, results.issues)
+        return message
+      }).catch((error) => {
+          editNoMention(message, { embeds: [{ title: 'An error has occurred.', color: 0xFF0000 }] })
+          console.log('Error when processing upcoming command:')
+          console.log(error)
+      })
+  })
+}
+
+async function handleButtonClick(interaction) {
+  const paginator = activePaginators.get(interaction.message.id)
+  const totalPages = Math.ceil(paginator.issues.length / ITEMS_PER_PAGE)
+
+  switch (interaction.customId) {
+  case 'previous':
+      paginator.currentPage = Math.max(1, paginator.currentPage - 1)
+      break
+  case 'next':
+      paginator.currentPage = Math.min(totalPages, paginator.currentPage + 1)
+      break
+  case 'done':
+      activePaginators.delete(interaction.message.id)
+      interaction.update({
+          components: [],
+      })
+      return
+  }
+  // update the message with the new page
+  interaction.update(getPageToRender(interaction.message))
 }
 
 async function sendStatus (interaction) {
@@ -229,44 +365,56 @@ async function sendStatus (interaction) {
 }
 
 // Send info about the bug in the form of an embed to the Discord channel
-async function sendEmbed (interaction, issue) {
-  let descriptionString = '**Status:** ' + issue.fields.status.name
-  if (!issue.fields.resolution) {
-    // For unresolved issues
-    descriptionString += ' | **Votes:** ' + issue.fields.votes.votes
-    if (issue.fields.customfield_12200) {
-      descriptionString += ' | **Priority:** ' + issue.fields.customfield_12200.value
-    }
-  } else {
-    // For resolved issues
-    descriptionString += ' | **Resolution:** ' + issue.fields.resolution.name
-  }
-  if (issue.fields.customfield_11901) {
-    const categories = issue.fields.customfield_11901.map(c => c.value)
-    descriptionString += ` | **${categories.length === 1 ? 'Category' : 'Categories'}:** ` + categories.join(', ')
-  }
-  descriptionString += '\n**Reporter:** ' + issue.fields.reporter.displayName
-  if (issue.fields.assignee) {
-    descriptionString += ' | **Assignee:** ' + issue.fields.assignee.displayName
+async function sendEmbed(interaction, issue) {
+  const status = issue.fields.status.name
+  const voteCount = String(issue.fields.votes.votes)
+  // Pick a color based on the status
+  let color = config.colors[status]
+
+  let resolution = 'Unresolved'
+  if (issue.fields.resolution) {
+      resolution = issue.fields.resolution.name
+      // modify the color based on the resolution
+      if (['Invalid', 'Duplicate', 'Incomplete', 'Cannot Reproduce'].includes(resolution)) {
+          color = config.colors.Invalid
+      } else if (['Won\'t Fix', 'Works As Intended'].includes(resolution)) {
+          color = config.colors.Working
+      }
   }
 
-  // Generate the message
-  // Pick a color based on the status
-  let color = config.colors[issue.fields.status.name]
-  // Additional colors for different resolutions
-  if (issue.fields.resolution && ['Invalid', 'Duplicate', 'Incomplete', 'Cannot Reproduce'].includes(issue.fields.resolution.name)) {
-    color = config.colors['Invalid']
-  } else if (issue.fields.resolution && ["Won't Fix", 'Works As Intended'].includes(issue.fields.resolution.name)) {
-    color = config.colors['Working']
+  let categories = 'Unassigned'
+  if (issue.fields.customfield_11901) {
+      categories = issue.fields.customfield_11901.map((category) => category.value).join(', ')
   }
-  await replyNoMention(interaction, {embeds: [{
-    title: issue.key + ': ' + issue.fields.summary,
-    url: 'https://bugs.mojang.com/browse/' + issue.key,
-    description: descriptionString,
-    color: color,
-    timestamp: new Date(Date.parse(issue.fields.created)),
-    footer: {
-      text: 'Created'
-    }
-  }]})
+
+  let priority = 'None'
+  if (issue.fields.customfield_12200) {
+      priority = issue.fields.customfield_12200.value
+  }
+
+  let assignee = 'Unassigned'
+  if (issue.fields.assignee) {
+      assignee = issue.fields.assignee.displayName
+  }
+
+  const description = `\`\`\`
+Status    : ${status}${' '.repeat(18 - status.length)}Resolution: ${resolution}
+Votes     : ${voteCount}${' '.repeat(18 - voteCount.length)}Priority  : ${priority}
+Category  : ${categories}
+Reporter  : ${issue.fields.reporter.displayName}
+Assignee  : ${assignee}
+\`\`\``
+
+  const embed = {
+      title: `${issue.key}: ${issue.fields.summary}`,
+      url: `https://bugs.mojang.com/browse/${issue.key}`,
+      description,
+      color,
+      timestamp: new Date(Date.parse(issue.fields.created)),
+      footer: {
+          text: 'Created',
+      },
+  }
+
+  await replyNoMention(interaction, { embeds: [embed] })
 }
