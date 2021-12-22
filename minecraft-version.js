@@ -112,7 +112,7 @@ async function poll () {
 }
 
 const fancySize = size => {
-  const mbs = size / (1024 * 1204)
+  const mbs = size / (1024 * 1024)
   return mbs.toFixed(1) + 'MB'
 }
 
