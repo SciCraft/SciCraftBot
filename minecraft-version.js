@@ -118,13 +118,11 @@ const fancySize = size => {
 
 async function update (version) {
   const embed = await getUpdateEmbed(version)
-  if (config.webhook) await request.post(config.webhook, {json: {embeds: [embed]}})
-  if (config.channels) {
-    for (const id of config.channels) {
-      const channel = await client.channels.fetch(id)
-      await channel.send({embeds: [embed]})
-    }
-  }
+
+  await Promise.all([
+    config.webhook && request.post(config.webhook, {json: {embeds: [embed]}}),
+    ...(config.channels?.map(id => client.channels.fetch(id).then(channel => channel.send({embeds: [embed]}))) ?? [])
+  ])
 }
 
 async function getUpdateEmbed (version) {
