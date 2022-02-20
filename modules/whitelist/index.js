@@ -186,7 +186,7 @@ const functions = {
         const users = {}
         for (const uuid in byUuid) {
             const id = byUuid[uuid]
-            const member = members.get(id)
+            const member = members[id]
             const user = users[id] = users[id] || {}
             if (member) user.discord = member.user.tag
             if (banned.has(uuid)) user.banned = true
