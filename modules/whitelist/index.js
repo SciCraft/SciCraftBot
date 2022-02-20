@@ -235,7 +235,6 @@ async function canModify(user, other) {
 async function log(interaction, embed) {
     if (!config.log) return
     let command = interaction.commandName
-    console.log(JSON.stringify(interaction.options.data))
     for (const data of interaction.options.data) {
         if (data.type === 'SUB_COMMAND') {
             command += ` ${data.name}`
@@ -258,6 +257,19 @@ async function isAdmin(member) {
 async function getMember(user) {
     const guild = await client.guilds.fetch(globalConfig.guild)
     return guild.members.fetch(user)
+}
+
+async function getMembers(users) {
+    const guild = await client.guilds.fetch(globalConfig.guild)
+    const members = {}
+    const ps = []
+    for (let i = 0; i < users.length; i += 100) {
+        ps.push(guild.members.fetch({user: users.slice(i, Math.max(i + 100, users.length))}).then(m => {
+            for (const id of m.keys()) members[id] = m.get(id)
+        }))
+    }
+    await Promise.all(ps)
+    return members
 }
 
 async function allowedLinks(member) {
@@ -365,13 +377,11 @@ async function calculateState() {
         names[uuid] = name
     }
     const ids = new Set(Object.values(byUuid))
-    const guild = await client.guilds.fetch(globalConfig.guild)
-    const members = await guild.members.fetch({user: [...ids]})
+    const members = await getMembers([...ids])
     const serversForId = {}
-    for (const member of members.values()) {
+    for (const member of Object.values(members)) {
         serversForId[member.id] = getServersForMember(member)
     }
-    console.log(serversForId)
     const serversForUuid = {}
     for (const uuid of database.removed) {
         serversForUuid[uuid] = new Set()
@@ -391,10 +401,9 @@ async function calculateState() {
 }
 
 async function update() {
-    console.log('Updating')
+    console.log('Updating whitelist...')
     const start = Date.now()
     const {serversForUuid, names} = await calculateState()
-    console.log(serversForUuid)
     const allUpdates = {}
     for (const serverId in servers) {
         const server = servers[serverId]
@@ -423,7 +432,6 @@ async function update() {
             newWhitelist.push({uuid, name: names[uuid]})
             additions.push(uuid)
         }
-        //console.log(serverId, newWhitelist)
         if (additions.length || removals.length) {
             allUpdates[serverId] = {additions, removals}
             await server.fs.writeFile('whitelist.json', JSON.stringify(newWhitelist, null, 2))
