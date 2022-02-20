@@ -23,6 +23,7 @@ client.on('ready', () => {
   for (const module in config.modules) {
     const modConfig = config.modules[module]
     if (!modConfig) continue
+    if (!fs.existsSync('./modules/' + module + '/index.js')) continue
     const m = await import('./modules/' + module + '/index.js')
     const moduleCommands = (await m.default(client, config, modConfig)) || []
     for (const command of moduleCommands) {
