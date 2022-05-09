@@ -117,8 +117,11 @@ async function onMessage (msg) {
 async function respondWithIssue(msg, issueKey) {
   // Send info about the bug in the form of an embed to the Discord channel
   await jira.findIssue(issueKey).then(issue => sendEmbed(msg, issue)).catch(async error => {
-    if (error && error.error && error.error.errorMessages && error.error.errorMessages.includes('Issue Does Not Exist')) {
+    const errorMessages = (error && error.error && error.error.errorMessages && error.error.errorMessages) || []
+    if (errorMessages.includes('Issue Does Not Exist')) {
       await replyNoMention(msg, 'No issue was found for ' + issueKey + '.')
+    } else if (errorMessages.includes('You do not have the permission to see the specified issue.')) {
+      await replyNoMention(msg, 'Issue ' + issueKey + ' is private or was deleted.')
     } else {
       try {
         await replyNoMention(msg, 'An unknown error has occurred.')
