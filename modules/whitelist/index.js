@@ -20,7 +20,6 @@ export default function(_client, _globalConfig, _config) {
     client.on('interactionCreate', async interaction => {
         if (!interaction.isCommand() || interaction.commandName !== 'whitelist') return
         try {
-            console.log(interaction.options)
             await functions[interaction.options.getSubcommand()](interaction)
         } catch (e) {
             console.error(e)
@@ -58,9 +57,8 @@ export default function(_client, _globalConfig, _config) {
         const allRoles = new Set([...oldRoles, ...newRoles])
         for (const role of allRoles) {
             if (newRoles.has(role) && oldRoles.has(role)) continue
-            console.log(`Role update: ${role}`)
             if (role in config.roles) {
-                console.log('Scheduling update')
+                console.log(`Role update: ${role}, scheduling whitelist update`)
                 scheduleUpdate()
                 break
             }
