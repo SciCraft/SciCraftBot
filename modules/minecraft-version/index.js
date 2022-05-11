@@ -71,7 +71,7 @@ async function fetchManifest(lastModified) {
   try {
     return await fetch('https://meta.skyrising.xyz/mc/game/version_manifest.json', {timeout: 4000, headers, agent})
   } catch (e) {
-    console.error(e)
+    console.error(e.message)
     return await fetch('https://launchermeta.mojang.com/mc/game/version_manifest.json', {timeout: 4000, agent})
   }
 }
@@ -89,7 +89,7 @@ async function poll() {
     if (res.status === 304) return
     const data = await res.json()
     this.data = data
-    const latestDate = data.versions.map(v => Date.parse(v.time)).reduce((a, b) => a > b ? a : b)
+    const latestDate = Math.max(...data.versions.map(v => Date.parse(v.time)))
     if (this.latestDate === undefined) {
       this.latestRelease = data.latest.release
       this.latestSnapshot = data.latest.snapshot
