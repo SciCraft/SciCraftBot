@@ -72,7 +72,7 @@ async function fetchManifest(lastModified) {
     return await fetch('https://meta.skyrising.xyz/mc/game/version_manifest.json', {timeout: 4000, headers, agent})
   } catch (e) {
     console.error(e.message)
-    return await fetch('https://launchermeta.mojang.com/mc/game/version_manifest.json', {timeout: 4000, agent})
+    return await fetch('https://piston-meta.mojang.com/mc/game/version_manifest.json', {timeout: 4000, agent})
   }
 }
 
