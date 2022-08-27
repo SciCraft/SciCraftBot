@@ -404,47 +404,53 @@ async function update() {
     const {serversForUuid, names} = await calculateState()
     const allUpdates = {}
     for (const serverId in servers) {
-        const server = servers[serverId]
-        const currentWhitelist = JSON.parse(await server.fs.readFile('whitelist.json'))
-        const alreadyPresent = new Set()
-        const newWhitelist = []
-        const unmanaged = []
-        const additions = []
-        const removals = []
-        for (const entry of currentWhitelist) {
-            if (!(entry.uuid in serversForUuid)) {
-                unmanaged.push(entry)
-                newWhitelist.push(entry)
-            } else {
-                const allowedServers = serversForUuid[entry.uuid]
-                if (allowedServers.has(serverId)) {
-                    alreadyPresent.add(entry.uuid)
+        try {
+            const server = servers[serverId]
+            const currentWhitelist = JSON.parse(await server.fs.readFile('whitelist.json'))
+            const alreadyPresent = new Set()
+            const newWhitelist = []
+            const unmanaged = []
+            const additions = []
+            const removals = []
+            for (const entry of currentWhitelist) {
+                if (!(entry.uuid in serversForUuid)) {
+                    unmanaged.push(entry)
                     newWhitelist.push(entry)
                 } else {
-                    removals.push(entry.uuid)
+                    const allowedServers = serversForUuid[entry.uuid]
+                    if (allowedServers.has(serverId)) {
+                        alreadyPresent.add(entry.uuid)
+                        newWhitelist.push(entry)
+                    } else {
+                        removals.push(entry.uuid)
+                    }
                 }
             }
-        }
-        for (const uuid in serversForUuid) {
-            if (alreadyPresent.has(uuid) || !serversForUuid[uuid].has(serverId)) continue
-            newWhitelist.push({uuid, name: names[uuid]})
-            additions.push(uuid)
-        }
-        if (additions.length || removals.length) {
-            allUpdates[serverId] = {additions, removals}
-            await server.fs.writeFile('whitelist.json', JSON.stringify(newWhitelist, null, 2))
-            const commands = []
-            for (const uuid of removals) {
-                commands.push('deop ' + names[uuid])
-                commands.push('kick ' + names[uuid])
+            for (const uuid in serversForUuid) {
+                if (alreadyPresent.has(uuid) || !serversForUuid[uuid].has(serverId)) continue
+                newWhitelist.push({uuid, name: names[uuid]})
+                additions.push(uuid)
             }
-            if (config.servers[serverId].opEveryone) {
-                for (const uuid of additions) commands.push('op ' + names[uuid])
+            if (additions.length || removals.length) {
+                allUpdates[serverId] = {additions, removals}
+                await server.fs.writeFile('whitelist.json', JSON.stringify(newWhitelist, null, 2))
+                const commands = []
+                for (const uuid of removals) {
+                    commands.push('deop ' + names[uuid])
+                    commands.push('kick ' + names[uuid])
+                }
+                if (config.servers[serverId].opEveryone) {
+                    for (const uuid of additions) commands.push('op ' + names[uuid])
+                }
+                commands.push('whitelist reload')
+                    await server.runCommands(...commands)
             }
-            commands.push('whitelist reload')
-            await server.runCommands(...commands)
+        } catch (e) {
+            console.error(`Could not update ${serverId}: ${e}`)
         }
     }
-    console.log(allUpdates)
+    if (allUpdates.length) {
+        console.log(allUpdates)
+    }
     console.log(`Done in ${Date.now() - start}ms`)
 }
