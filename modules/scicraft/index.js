@@ -29,7 +29,7 @@ export default (_client, _globalConfig, _config) => {
   if (config['media-only']) {
     const mediaOnlyConf = config['media-only']
     const ignoreRoles = mediaOnlyConf['ignore-roles'] || []
-    const ignorePermissions = mediaOnlyConf['ignore-permissions'] || ['MANAGE_CHANNELS']
+    const ignorePermissions = mediaOnlyConf['ignore-permissions'] || ['ManageChannels']
     const channels = mediaOnlyConf.channels || []
     client.on('messageCreate', msg => {
       if (msg.author.bot || !channels.includes(msg.channel.id) || !msg.deletable || !msg.member || /\bhttp(s)?:\/\//.test(msg.content) || msg.embeds.length || msg.attachments.size) return
