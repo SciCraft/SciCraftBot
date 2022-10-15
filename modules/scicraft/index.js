@@ -31,21 +31,25 @@ export default (_client, _globalConfig, _config) => {
     const ignoreRoles = mediaOnlyConf['ignore-roles'] || []
     const ignorePermissions = mediaOnlyConf['ignore-permissions'] || ['ManageChannels']
     const channels = mediaOnlyConf.channels || []
-    client.on('messageCreate', msg => {
-      if (msg.author.bot || !channels.includes(msg.channel.id) || !msg.deletable || !msg.member || /\bhttp(s)?:\/\//.test(msg.content) || msg.embeds.length || msg.attachments.size) return
-      for (const [id, role] of msg.member.roles.cache) {
-        if (ignoreRoles.includes(id)) {
-          console.log(`${msg.id}: ${msg.author.username} has ${role.name}, not deleting`)
-          return
+    client.on('messageCreate', async msg => {
+      try {
+        if (msg.author.bot || !channels.includes(msg.channel.id) || !msg.deletable || !msg.member || /\bhttp(s)?:\/\//.test(msg.content) || msg.embeds.length || msg.attachments.size) return
+        for (const [id, role] of msg.member.roles.cache) {
+          if (ignoreRoles.includes(id)) {
+            console.log(`${msg.id}: ${msg.author.username} has ${role.name}, not deleting`)
+            return
+          }
         }
-      }
-      for (const perm of ignorePermissions) {
-        if (msg.member.permissions.has(perm)) {
-          console.log(`${msg.id}: ${msg.author.username} has ${perm}, not deleting`)
-          return
+        for (const perm of ignorePermissions) {
+          if (msg.member.permissions.has(perm)) {
+            console.log(`${msg.id}: ${msg.author.username} has ${perm}, not deleting`)
+            return
+          }
         }
+        await deleteAndLog(msg, 'Text message in media-only channel')
+      } catch (e) {
+        console.error(e)
       }
-      deleteAndLog(msg, 'Text message in media-only channel')
     })
   }
 }
