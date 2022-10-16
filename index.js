@@ -1,10 +1,10 @@
 import fs from 'fs'
-import {Client, IntentsBitField} from 'discord.js'
+import {Client} from 'discord.js'
 import {REST} from '@discordjs/rest'
-import {Routes} from 'discord-api-types/v10'
+import {GatewayIntentBits, Routes} from 'discord-api-types/v10'
 
 const config = JSON.parse(fs.readFileSync('./config.json'))
-const client = new Client({intents: [IntentsBitField.Flags.Guilds, IntentsBitField.Flags.GuildMessages, IntentsBitField.Flags.GuildMembers]})
+const client = new Client({intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.GuildMembers, GatewayIntentBits.MessageContent]})
 
 client.on('ready', () => {
   console.log(`Logged in as ${client.user.tag}!`)
