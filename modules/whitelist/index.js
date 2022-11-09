@@ -249,7 +249,7 @@ async function log(interaction, embed) {
 }
 
 async function isAdmin(member) {
-    return member.permissions.has('ADMINISTRATOR')
+    return member.permissions.has('Administrator')
 }
 
 async function getMember(user) {
