@@ -26,6 +26,15 @@ export default function(_client, _globalConfig, _config) {
             try {
                 await interaction[interaction.deferred ? 'editReply' : 'reply']('An error occured trying to execute this command')
             } catch (_) {}
+            try {
+                await log(interaction, {
+                    title: 'Error while executing command',
+                    fields: [{
+                        name: '\u200B',
+                        value: '```\n' + e.stack + '\n```'
+                    }]
+                })
+            } catch (_) {}
         }
     })
 
@@ -216,11 +225,14 @@ const functions = {
             return
         }
         await interaction.deferReply({ephemeral: true})
-        database.load()
-        await database.convertNamesToUuids()
-        await scheduleUpdate()
-        await interaction.editReply({content: 'Database reloaded', ephemeral: true})
-        await log(interaction)
+        try {
+            database.load()
+            await database.convertNamesToUuids()
+            await scheduleUpdate()
+            await interaction.editReply({content: 'Database reloaded', ephemeral: true})
+        } finally {
+            await log(interaction)
+        }
     }
 }
 
@@ -238,7 +250,7 @@ async function log(interaction, embed) {
     if (!config.log) return
     let command = interaction.commandName
     for (const data of interaction.options.data) {
-        if (data.type === 'SUB_COMMAND') {
+        if (data.type === 1) {
             command += ` ${data.name}`
             for (const opt of data.options) {
                 command += ` ${opt.name}:${opt.value}`
@@ -247,7 +259,7 @@ async function log(interaction, embed) {
     }
     const channel = await client.channels.fetch(config.log)
     await channel.send({
-        content: interaction.user.tag + ': /' + command,
+        content: interaction.user.tag + ': `/' + command + '`',
         embeds: embed ? [embed] : undefined
     })
 }
