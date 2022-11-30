@@ -99,6 +99,10 @@ export default function(_client, _globalConfig, _config) {
     ]
 }
 
+function escapeName(name) {
+    return name.replace(/_/g, '\\_')
+}
+
 const functions = {
     async add(interaction) {
         const target = interaction.options.getUser('user') || interaction.user
@@ -115,12 +119,12 @@ const functions = {
         }
         const current = database.getUser(target.id)
         if (current.uuids.includes(uuid)) {
-            await interaction.editReply(`${minecraftName} (${uuid}) is already added to this user`)
+            await interaction.editReply(`${escapeName(minecraftName)} (${uuid}) is already added to this user`)
             return
         }
         const otherLink = database.getLinkedUser(uuid)
         if (otherLink) {
-            await interaction.editReply(`${minecraftName} (${uuid}) is already linked to another user`)
+            await interaction.editReply(`${escapeName(minecraftName)} (${uuid}) is already linked to another user`)
             return
         }
         const allowedCount = await allowedLinks(await getMember(target))
@@ -321,7 +325,7 @@ async function makeEmbed(id, userInfo) {
         title: user.username,
         fields: [{
             name: `Username${userInfo.uuids.length === 1 ? '' : 's'} (${users.length}/${isFinite(limit) ? limit : 'unlimited'})`,
-            value: users.map(u => `${u.name} \`${u.uuid}\``).join(',\n') || 'None'
+            value: users.map(u => `${escapeName(u.name)} \`${u.uuid}\``).join(',\n') || 'None'
         }, {
             name: 'Servers',
             value: [...servers].join('\n') || 'None'
