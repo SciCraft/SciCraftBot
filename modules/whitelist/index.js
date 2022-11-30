@@ -214,7 +214,7 @@ const functions = {
         await interaction.deferReply({ephemeral: true})
         database.load()
         await database.convertNamesToUuids()
-        scheduleUpdate()
+        await scheduleUpdate()
         await interaction.editReply({content: 'Database reloaded', ephemeral: true})
         await log(interaction)
     }
@@ -333,23 +333,34 @@ async function makeEmbed(id, userInfo) {
     }
 }
 
-let updating = false
-function scheduleUpdate() {
-    setTimeout(async () => {
-        if (updating) {
-            scheduleUpdate()
-            return
-        }
-        updating = true
-        try {
-            await update()
-        } catch (e) {
-            console.error(e)
-        } finally {
-            updating = false
-        }
-    }, 5000)
+function createQueue(callback, interval) {
+    let running = false
+    let done
+    let promise = new Promise(resolve => done = resolve)
+    function schedule() {
+        setTimeout(async () => {
+            if (running) {
+                console.log('Already updating, rescheduling')
+                schedule()
+                return
+            }
+            running = true
+            try {
+                await callback()
+                done()
+                promise = new Promise(resolve => done = resolve)
+            } catch (e) {
+                console.error(e)
+            } finally {
+                running = false
+            }
+        }, interval)
+        return promise
+    }
+    return schedule
 }
+
+const scheduleUpdate = createQueue(update, 5000)
 
 function getServersForRole(roleId) {
     return config.roles[roleId].servers.flatMap(glob => {
