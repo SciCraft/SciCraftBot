@@ -471,7 +471,7 @@ async function update() {
                     for (const uuid of additions) commands.push('op ' + names[uuid])
                 }
                 commands.push('whitelist reload')
-                    await server.runCommands(...commands)
+                await server.runCommands(...commands)
             }
         } catch (e) {
             console.error(`Could not update ${serverId}: ${e}`)
