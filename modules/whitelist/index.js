@@ -431,6 +431,7 @@ async function update() {
     const {serversForUuid, names} = await calculateState()
     const allUpdates = {}
     for (const serverId in servers) {
+        console.log(`Updating ${serverId}...`)
         try {
             const server = servers[serverId]
             const currentWhitelist = JSON.parse(await server.fs.readFile('whitelist.json'))
