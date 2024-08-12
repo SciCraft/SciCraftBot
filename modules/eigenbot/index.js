@@ -179,7 +179,7 @@ async function sendUpcoming (interaction, project) {
       return replyNoMention(interaction, 'No upcoming bugfixes were found.')
     }
 
-    let messageContent = `The following ${result.issues.length} bugs will likely be fixed in the next snapshot:`
+    let messageContent = `The following ${results.issues.length} bugs will likely be fixed in the next snapshot:`
 
     async function addLine(line) {
       const newContent = line !== null ? messageContent + '\n' + line : messageContent
