@@ -6,8 +6,6 @@
     "modules": {
       "eigenbot": {
         "host": "bugs.mojang.com", //You shouldn't need to change this
-        "user": "", //This is your JIRA username
-        "password": "", //Password for the same account
         "url": "https://github.com/skyrising/SciCraftBot", //Linked to in !help
         "name": "SciCraft Bot", //Bot name listed in !help
         "colors": { //Colors for JIRA issue statuses

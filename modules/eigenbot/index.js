@@ -1,26 +1,16 @@
 import fetch from 'node-fetch'
-import JiraApi from 'jira-client'
 import {replyNoMention, editNoMention} from '../../utils.js'
 import {SlashCommandBuilder} from '@discordjs/builders'
 
 const PROJECTS = ['MC', 'MCAPI', 'MCCE', 'MCD', 'MCL', 'MCPE', 'REALMS', 'BDS', 'WEB']
 
-let jira, client, config, globalConfig
+let client, config, globalConfig
 
 export default (_client, _globalConfig, _config) => {
   client = _client
   globalConfig = _globalConfig
   config = _config
 
-  jira = new JiraApi({
-    protocol: 'https',
-    host: config.host,
-    port: 443,
-    username: config.user,
-    password: config.password,
-    apiVersion: '2',
-    strictSSL: true
-  })
   client.on('messageCreate', async msg => {
     try {
       await onMessage(msg)
@@ -114,21 +104,45 @@ async function onMessage (msg) {
   }
 }
 
+async function searchIssues(project, jql) {
+  const issues = []
+  const names = []
+  while (true) {
+    const response = await fetch(`https://${config.host}/api/jql-search-post`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        advanced: true,
+        search: jql,
+        project: project,
+        startAt: issues.length
+      })
+    })
+    const searchResults = await response.json()
+    if (!searchResults.issues) break
+    Object.assign(names, searchResults.names)
+    issues.push(...searchResults.issues)
+    if (issues.length >= searchResults.total) break
+  }
+  return {issues, names}
+}
+
 async function respondWithIssue(msg, issueKey) {
   // Send info about the bug in the form of an embed to the Discord channel
-  await jira.findIssue(issueKey).then(issue => sendEmbed(msg, issue)).catch(async error => {
-    const errorMessages = (error && error.error && error.error.errorMessages && error.error.errorMessages) || []
-    if (errorMessages.includes('Issue Does Not Exist')) {
-      await replyNoMention(msg, 'No issue was found for ' + issueKey + '.')
-    } else if (errorMessages.includes('You do not have the permission to see the specified issue.')) {
-      await replyNoMention(msg, 'Issue ' + issueKey + ' is private or was deleted.')
-    } else {
-      try {
-        await replyNoMention(msg, 'An unknown error has occurred.')
-      } catch (_) {/**/}
-      console.log(error)
-    }
-  })
+  const issue = (await searchIssues(issueKey.slice(0, issueKey.indexOf('-')), `key = ${issueKey}`)).issues[0]
+  if (!issue) {
+    return replyNoMention(msg, 'No issue was found for ' + issueKey + '.')
+  }
+  try {
+    await sendEmbed(msg, issue)
+  } catch (e) {
+    try {
+      await replyNoMention(msg, 'An unknown error has occurred.')
+    } catch (_) {/**/}
+    console.error(e)
+  }
 }
 
 async function sendHelp (interaction) {
@@ -171,11 +185,11 @@ async function sendUpcoming (interaction, project) {
       }
     }, 500)
   }
-  
-  const search = 'project = ' + project + ' AND fixVersion in unreleasedVersions() ORDER BY resolved DESC'
-  jira.searchJira(search).then(async function (results) {
+
+  try {
+    const results = await searchIssues(project, 'fixVersion in unreleasedVersions() ORDER BY resolved DESC')
     done = true
-    if (!results.issues || !results.issues.length) { 
+    if (!results.issues || !results.issues.length) {
       return replyNoMention(interaction, 'No upcoming bugfixes were found.')
     }
 
@@ -196,12 +210,12 @@ async function sendUpcoming (interaction, project) {
       await addLine('**' + issue.key + '**: *' + issue.fields.summary.trim() + '*')
     }
     await addLine(null)
-  }).catch(function (error) {
+  } catch (error) {
     done = true
     replyNoMention(interaction, 'An error has occurred.')
-    console.log('Error when processing upcoming command:')
-    console.log(error)
-  })
+    console.error('Error when processing upcoming command:')
+    console.error(error)
+  }
 }
 
 async function sendStatus (interaction) {
@@ -247,19 +261,21 @@ async function sendEmbed (interaction, issue) {
   let descriptionString = '**Status:** ' + issue.fields.status.name
   if (!issue.fields.resolution) {
     // For unresolved issues
-    descriptionString += ' | **Votes:** ' + issue.fields.votes.votes
-    if (issue.fields.customfield_12200) {
-      descriptionString += ' | **Priority:** ' + issue.fields.customfield_12200.value
+    descriptionString += ' | **Votes:** ' + (issue.fields.customfield_10070 ?? 0)
+    if (issue.fields.customfield_10049) {
+      descriptionString += ' | **Priority:** ' + issue.fields.customfield_10049.value
     }
   } else {
     // For resolved issues
     descriptionString += ' | **Resolution:** ' + issue.fields.resolution.name
   }
-  if (issue.fields.customfield_11901) {
-    const categories = issue.fields.customfield_11901.map(c => c.value)
+  if (issue.fields.customfield_10055) {
+    const categories = issue.fields.customfield_10055.map(c => c.value)
     descriptionString += ` | **${categories.length === 1 ? 'Category' : 'Categories'}:** ` + categories.join(', ')
   }
-  descriptionString += '\n**Reporter:** ' + issue.fields.reporter.displayName
+  if (issue.fields.reporter) {
+    descriptionString += '\n**Reporter:** ' + issue.fields.reporter.displayName
+  }
   if (issue.fields.assignee) {
     descriptionString += ' | **Assignee:** ' + issue.fields.assignee.displayName
   }
