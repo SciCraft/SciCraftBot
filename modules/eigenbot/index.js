@@ -58,7 +58,7 @@ function onInteraction(interaction) {
 async function onMessage (msg) {
   const escapedPrefix = globalConfig.prefix.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
   const regexPattern = new RegExp(escapedPrefix + '(' + PROJECTS.join('|') + ')-[0-9]{1,7}', 'gi')
-  const urlRegex = new RegExp('https?:\/\/bugs.mojang.com\/browse\/(' + PROJECTS.join('|') + ')-[0-9]{1,7}', 'gi')
+  const urlRegex = new RegExp('https?:\/\/(?:report\\.)?bugs\\.mojang\\.com\/.*?\/(' + PROJECTS.join('|') + ')-[0-9]{1,7}', 'gi')
   // We don't want our bot to react to other bots or itself
   if (msg.author.bot) {
     return
@@ -93,7 +93,7 @@ async function onMessage (msg) {
   const urls = msg.content.match(urlRegex)
   if (urls) {
     matches = matches.concat(urls.map(function (url) {
-      return url.split('/')[4]
+      return url.split('/').at(-1)
     }))
   }
   const keys = new Set(matches)
