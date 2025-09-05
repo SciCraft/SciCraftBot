@@ -107,7 +107,8 @@ async function onMessage (msg) {
 async function searchIssues(project, jql) {
   const issues = []
   const names = []
-  while (true) {
+  let totalPages = Infinity
+  for (let page = 0; page < totalPages; page++) {
     const response = await fetch(`https://${config.host}/api/jql-search-post`, {
       method: 'POST',
       headers: {
@@ -124,7 +125,8 @@ async function searchIssues(project, jql) {
     if (!searchResults.issues) break
     Object.assign(names, searchResults.names)
     issues.push(...searchResults.issues)
-    if (issues.length >= searchResults.total) break
+    if (searchResults.total && issues.length >= searchResults.total) break
+    if (searchResults.pagination) totalPages = searchResults.pagination.knownTotalPages
   }
   return {issues, names}
 }
